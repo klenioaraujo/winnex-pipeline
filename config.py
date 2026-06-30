@@ -14,9 +14,17 @@ _DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config', 'base.j
 
 def _default_config():
     return {
-        "version": "12.0.0",
+        "version": "12.1.0",
+        "model": {
+            "name": "all-MiniLM-L6-v2",
+            "dimension": 384,
+            "device": "cpu",
+            "normalize": True,
+            "max_length": 256,
+            "batch_size": 64
+        },
         "dimensions": {
-            "input_dim": 128,
+            "input_dim": 384,
             "stage_dims": [32, 64],
             "qjl_dim": 128
         },

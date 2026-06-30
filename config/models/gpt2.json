@@ -1,0 +1,30 @@
+{
+  "__meta__": "Model Preset: GPT-2 output hidden state (768D)",
+  "version": "12.1.0",
+  "model": {
+    "name": "gpt2",
+    "dimension": 768,
+    "device": "cpu",
+    "normalize": true,
+    "max_length": 1024,
+    "batch_size": 8,
+    "provider": "transformers",
+    "description": "GPT-2 outputs from the last hidden layer. 12-layer, 768D. Use with HuggingFace pipeline for generative document embeddings."
+  },
+  "dimensions": { "input_dim": 768, "stage_dims": [64, 128], "qjl_dim": 256 },
+  "search": {
+    "adaptive_keep_base": 0.20, "adaptive_keep_min": 0.05,
+    "adaptive_keep_max": 0.40, "adaptive_bounds_sensitivity": 0.08,
+    "stage2_topk": 1000, "stage2_topk_max": 2000,
+    "final_results": 10, "epsilon": 1e-5
+  },
+  "hybrid": {
+    "enabled": true, "n_cells": 64, "n_probe": [3, 5, 8, 10, 15],
+    "clustering": {
+      "algorithm": "MiniBatchKMeans", "random_state": 42,
+      "batch_size": 10000, "n_init": 3, "max_iter": 50
+    }
+  },
+  "bounds": { "cauchy_schwarz_epsilon": 1e-5, "orthogonality_tolerance": 1e-5 },
+  "modulation": { "error_backprop": true, "alpha_smoothing": 0.3, "alpha_min": 0.01, "alpha_max": 0.99 }
+}

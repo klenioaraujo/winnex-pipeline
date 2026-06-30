@@ -103,23 +103,58 @@ print("Guarantee:", bounds['guarantee'])  # PASS or FAIL
 
 ## Configuration
 
-The entire pipeline is driven by JSON config files. All parameters are documented in each preset.
+The entire pipeline is driven by JSON config files with a `model` section that controls the embedding model, and a `search` section that controls the search algorithm. See [CONFIG.md](CONFIG.md) for the full parameter reference.
+
+### Model Configuration
 
 ```json
 {
-  "dimensions": { "stage_dims": [32, 64], "input_dim": 128 },
-  "search": {
-    "adaptive_keep_base": 0.25,
-    "adaptive_keep_min": 0.05,
-    "adaptive_keep_max": 0.50,
-    "stage2_topk": 500,
-    "final_results": 10
+  "model": {
+    "name": "all-MiniLM-L6-v2",
+    "dimension": 384,
+    "device": "cpu",
+    "normalize": true,
+    "batch_size": 64
   },
-  "modulation": { "error_backprop": true, "alpha_smoothing": 0.5 }
+  "dimensions": { "stage_dims": [32, 64] },
+  ...
 }
 ```
 
-### Presets
+Switch models by changing one config file:
+
+```python
+# SBERT MiniLM (384D) — fast general purpose
+pipe = WinnexPipeline(config_path='config/models/minilm.json')
+
+# BGE (768D) — MTEB top ranker
+pipe = WinnexPipeline(config_path='config/models/bge.json')
+
+# GPT-2 hidden states (768D)
+pipe = WinnexPipeline(config_path='config/models/gpt2.json')
+```
+
+Or use the text encoding pipeline directly:
+
+```python
+pipe.build_from_texts(["Article about AI...", "Financial report...", ...])
+# Auto-encodes with the configured model, then builds the search index
+```
+
+### Supported Models
+
+| Model | Dim | Config | Provider |
+|---|---|---|---|
+| **all-MiniLM-L6-v2** | 384 | `config/models/minilm.json` | SBERT |
+| **all-mpnet-base-v2** | 768 | `config/models/mpnet.json` | SBERT |
+| **BAAI/bge-base-en-v1.5** | 768 | `config/models/bge.json` | SBERT |
+| **text-embedding-3-small** | 1536 | `config/models/openai_small.json` | OpenAI API |
+| **GPT-2** (hidden) | 768 | `config/models/gpt2.json` | HuggingFace |
+| **SIFT / synthetic** | 128 | `config/models/sift.json` | Pre-embedded |
+
+The pipeline auto-adapts `stage_dims` to any embedding dimension — no manual tuning needed.
+
+### Search Presets
 
 | File | stage_dims | Use Case |
 |---|---|---|
@@ -127,14 +162,19 @@ The entire pipeline is driven by JSON config files. All parameters are documente
 | `config/high_res.json` | [64, 128] | Maximum recall (R@10 ≈ 1.000) |
 | `config/qrjl.json` | [8, 64] | Fast QR-JL with error backprop modulation |
 
+See [CONFIG.md](CONFIG.md) for the complete parameter reference.
+
 ---
 
 ## API Reference
 
 ```python
-pipe = WinnexPipeline(config_path='config/base.json', method='auto')
+pipe = WinnexPipeline(config_path='config/models/minilm.json', method='auto')
 
-# Build index over corpus vectors
+# Encode texts and build index in one call
+pipe.build_from_texts(["doc1", "doc2", ...])
+
+# Or build from pre-embedded vectors
 pipe.build(vectors)                      # np.ndarray (N, D)
 
 # Search

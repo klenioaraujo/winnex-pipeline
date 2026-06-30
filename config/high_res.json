@@ -1,11 +1,22 @@
 {
-  "__meta__": "Madhava Pipeline - High Resolution Preset [64,128]",
-  "version": "12.0.0",
+  "__meta__": "Madhava Pipeline — High Resolution Preset [64,128]",
+  "version": "12.1.0",
+
+  "model": {
+    "name": "all-MiniLM-L6-v2",
+    "dimension": 384,
+    "device": "cpu",
+    "normalize": true,
+    "max_length": 256,
+    "batch_size": 64
+  },
+
   "dimensions": {
-    "input_dim": 128,
+    "input_dim": 384,
     "stage_dims": [64, 128],
     "qjl_dim": 128
   },
+
   "search": {
     "adaptive_keep_base": 0.30,
     "adaptive_keep_min": 0.10,
@@ -16,6 +27,7 @@
     "final_results": 10,
     "epsilon": 1e-5
   },
+
   "hybrid": {
     "enabled": true,
     "n_cells": 128,
@@ -28,10 +40,12 @@
       "max_iter": 50
     }
   },
+
   "bounds": {
     "cauchy_schwarz_epsilon": 1e-5,
     "orthogonality_tolerance": 1e-5
   },
+
   "modulation": {
     "error_backprop": true,
     "alpha_smoothing": 0.3,

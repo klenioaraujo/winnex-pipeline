@@ -1,0 +1,31 @@
+{
+  "__meta__": "Model Preset: OpenAI text-embedding-3-small (1536D)",
+  "version": "12.1.0",
+  "model": {
+    "name": "text-embedding-3-small",
+    "dimension": 1536,
+    "device": "api",
+    "normalize": true,
+    "max_length": 8191,
+    "batch_size": 32,
+    "provider": "openai",
+    "api_key_env": "OPENAI_API_KEY",
+    "description": "OpenAI's efficient embedding model. 1536D, 62.5ms avg latency. Use via API — requires OPENAI_API_KEY."
+  },
+  "dimensions": { "input_dim": 1536, "stage_dims": [64, 256], "qjl_dim": 512 },
+  "search": {
+    "adaptive_keep_base": 0.15, "adaptive_keep_min": 0.03,
+    "adaptive_keep_max": 0.30, "adaptive_bounds_sensitivity": 0.06,
+    "stage2_topk": 2000, "stage2_topk_max": 5000,
+    "final_results": 10, "epsilon": 1e-5
+  },
+  "hybrid": {
+    "enabled": true, "n_cells": 256, "n_probe": [5, 10, 15, 20, 30],
+    "clustering": {
+      "algorithm": "MiniBatchKMeans", "random_state": 42,
+      "batch_size": 5000, "n_init": 3, "max_iter": 50
+    }
+  },
+  "bounds": { "cauchy_schwarz_epsilon": 1e-5, "orthogonality_tolerance": 1e-5 },
+  "modulation": { "error_backprop": true, "alpha_smoothing": 0.2, "alpha_min": 0.01, "alpha_max": 0.99 }
+}
