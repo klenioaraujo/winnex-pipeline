@@ -1,0 +1,31 @@
+{
+  "__meta__": "Model Preset: Qwen3-Embedding-0.6B — Winnex AI Production Standard",
+  "version": "12.3.0",
+  "model": {
+    "name": "Qwen/Qwen3-Embedding-0.6B",
+    "dimension": 1024,
+    "device": "cpu",
+    "normalize": true,
+    "max_length": 32768,
+    "batch_size": 32,
+    "provider": "sentence-transformers",
+    "description": "Winnex AI production embedding model. 1024D, 32K context, MTEB 64.33. Replaces all-MiniLM-L6-v2."
+  },
+  "dimensions": {
+    "input_dim": 1024,
+    "qjl_dim": 128,
+    "stage_dims": [32, 64],
+    "description": "Qwen3 1024D -> QJL 128D -> Madhava [32,64]"
+  },
+  "search": {
+    "adaptive_keep_base": 0.20, "adaptive_keep_min": 0.05,
+    "adaptive_keep_max": 0.40, "adaptive_bounds_sensitivity": 0.10,
+    "stage2_topk": 500, "stage2_topk_max": 2000,
+    "final_results": 10, "epsilon": 1e-5
+  },
+  "hybrid": { "enabled": false, "n_cells": 64, "n_probe": [3, 5, 8, 10, 15],
+    "clustering": { "algorithm": "MiniBatchKMeans", "random_state": 42,
+      "batch_size": 20000, "n_init": 3, "max_iter": 50 } },
+  "bounds": { "cauchy_schwarz_epsilon": 1e-5, "orthogonality_tolerance": 1e-5 },
+  "modulation": { "error_backprop": true, "alpha_smoothing": 0.5, "alpha_min": 0.01, "alpha_max": 0.99 }
+}

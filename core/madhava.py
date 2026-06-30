@@ -19,34 +19,44 @@ class MadhavaCore:
     """
     Core Madhava search unit. Configurable stage dimensions.
 
+    If the config specifies a QJL dimension different from input_dim,
+    the vectors are automatically compressed via QJL at build time.
+    This enables the standard Winnex AI pipeline:
+      SBERT 384D → QJL 128D → Madhava cascade
+
     Args:
         config: dict or config path. Default: config/base.json
 
     Usage:
         mc = MadhavaCore()
-        mc.build(vectors)  # np.ndarray (N, D)
-        results = mc.search(query)  # np.ndarray (D,) -> top-k indices
+        mc.build(vectors)  # np.ndarray (N, D) — auto-compressed if configured
+        results = mc.search(query)
     """
 
     def __init__(self, config=None):
         self.cfg = config if isinstance(config, dict) else load_config(config)
+        self.raw_dim = self.cfg['dimensions']['input_dim']
+        self.qjl_dim = self.cfg['dimensions'].get('qjl_dim')
         self.dims = self.cfg['dimensions']['stage_dims']
-        self.full_dim = self.cfg['dimensions']['input_dim']
         self.s = self.cfg['search']
         self.b = self.cfg['bounds']
         self.m = self.cfg['modulation']
         self.rng = np.random.RandomState(43)
-        self.gamma = 0.0  # modulation bias (QR-JL feature)
+
+        # QJL compression state
+        self.qjl = None         # QJLCompressor if input_dim != qjl_dim
+        self.full_dim = self.raw_dim  # dimension Madhava operates on
+        self.gamma = 0.0
+        self._enable_gamma = False
 
         # State
         self.vectors = None
         self.n = 0
         self.norms = None
-        self.proj_matrices = {}   # d_out -> P (d_out x D)
-        self.proj_L = {}          # d_out -> projected vectors (N x d_out)
-        self.error = {}           # d_out -> Pythagorean residual (N,)
+        self.proj_matrices = {}
+        self.proj_L = {}
+        self.error = {}
         self.build_time = 0.0
-        self._enable_gamma = False
 
     # ── Config Getters ────────────────────────────────────────────
 
@@ -65,11 +75,23 @@ class MadhavaCore:
     def build(self, vectors):
         """
         Precompute QR-JL projections and Pythagorean residuals.
+        Auto-compresses via QJL if configured (e.g. 384D -> 128D).
 
         Args:
             vectors: np.ndarray of shape (N, D)
         """
         t0 = time.time()
+        vectors = np.asarray(vectors, dtype=np.float32)
+
+        # QJL Compression (e.g. 384D -> 128D)
+        qjl_dim = self.cfg['dimensions'].get('qjl_dim')
+        if qjl_dim and qjl_dim < vectors.shape[1]:
+            from winnex_pipeline.core.qjl import QJLCompressor
+            self.qjl = QJLCompressor(vectors.shape[1], qjl_dim, seed=42)
+            vectors = self.qjl.compress(vectors)
+            print(f"  QJL: {self.raw_dim}D -> {qjl_dim}D (eps~{self.qjl._jl_bound():.3f})", flush=True)
+            self.full_dim = qjl_dim
+
         self.vectors = vectors.astype(np.float64)
         self.n = len(vectors)
         self.norms = np.linalg.norm(self.vectors, axis=1)
@@ -77,10 +99,8 @@ class MadhavaCore:
         for d in self.dims:
             P = self._make_orthogonal_proj(d)
             self.proj_matrices[d] = P
-            # Project vectors to d-dim space
             proj = (vectors.astype(np.float32) @ P.T.astype(np.float32)).astype(np.float64)
             self.proj_L[d] = proj
-            # Pythagorean residual: error_d = sqrt(||v||^2 - ||Pv||^2)
             captured = np.linalg.norm(proj, axis=1)
             self.error[d] = np.sqrt(np.maximum(self.norms**2 - captured**2, 0))
 
@@ -118,7 +138,13 @@ class MadhavaCore:
             return np.array([], dtype=int)
 
         t_start = time.time()
-        q = q.astype(np.float64).flatten()
+        q = np.asarray(q, dtype=np.float32).flatten()
+
+        # Auto-compress query if QJL is active
+        if self.qjl is not None:
+            q = self.qjl.compress_query(q)
+
+        q = q.astype(np.float64)
         qn = np.linalg.norm(q)
         prof = {'n_total': self.n, 'stage_dims': self.dims}
 
@@ -193,7 +219,10 @@ class MadhavaCore:
         A violation occurs when true cosine exceeds the upper bound.
         Returns dict mapping "dD" -> violation_count.
         """
-        q = q.astype(np.float64).flatten()
+        q = np.asarray(q, dtype=np.float32).flatten()
+        if self.qjl is not None:
+            q = self.qjl.compress_query(q)
+        q = q.astype(np.float64)
         qn = np.linalg.norm(q)
         true_cos = self.vectors.astype(np.float64) @ q
         viol = {}

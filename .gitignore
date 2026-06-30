@@ -35,4 +35,7 @@ Thumbs.db
 *.json
 !config/*.json
 !config/models/*.json
+!configs/*.json
+!configs/models/*.json
+!configs/agents/*.json
 data/

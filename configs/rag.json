@@ -1,0 +1,103 @@
+{
+  "__meta__": "Winnex RAG — Multi-Agent Retrieval-Augmented Generation (Local Models Only)",
+  "version": "12.2.0",
+
+  "agent": {
+    "name": "default",
+    "description": "General-purpose RAG agent with local models only",
+    "system_prompt": "You are a helpful assistant. Answer based on the retrieved context. If uncertain, say so."
+  },
+
+  "embedding_model": {
+    "name": "all-MiniLM-L6-v2",
+    "dimension": 384,
+    "device": "cpu",
+    "normalize": true,
+    "max_length": 256,
+    "batch_size": 64,
+    "provider": "sentence-transformers",
+    "description": "Lightweight embedding model for vector search."
+  },
+
+  "dimensions": {
+    "input_dim": 384,
+    "stage_dims": [32, 64],
+    "qjl_dim": 128
+  },
+
+  "dataset": {
+    "source": "json",
+    "name": "local",
+    "path": "data/rag_corpus.json",
+    "max_documents": 50000,
+    "fields": {
+      "title": "headline",
+      "content": "short_description",
+      "category": "category",
+      "metadata": ["headline", "category"]
+    }
+  },
+
+  "chunking": {
+    "enabled": true,
+    "strategy": "recursive",
+    "chunk_size": 512,
+    "chunk_overlap": 64,
+    "separators": ["\n\n", "\n", ". ", " ", ""],
+    "max_chunks_per_doc": 20
+  },
+
+  "search": {
+    "method": "madhava",
+    "adaptive_keep_base": 0.25,
+    "adaptive_keep_min": 0.05,
+    "adaptive_keep_max": 0.50,
+    "adaptive_bounds_sensitivity": 0.12,
+    "stage2_topk": 500,
+    "stage2_topk_max": 2000,
+    "final_results": 10,
+    "epsilon": 1e-5
+  },
+
+  "retriever": {
+    "top_k": 5,
+    "min_score": 0.0,
+    "mmr_lambda": 0.5
+  },
+
+  "generator": {
+    "description": "LOCAL MODELS ONLY. No API keys needed.",
+    "provider": "transformers",
+    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "device": "auto",
+    "quantization": null,
+    "max_tokens": 512,
+    "temperature": 0.3,
+    "prompt_template": "Context:\n{context}\n\nQuestion: {query}\n\nAnswer based on the context above."
+  },
+
+  "hybrid": {
+    "enabled": false,
+    "n_cells": 64,
+    "n_probe": [3, 5, 8, 10, 15],
+    "clustering": {
+      "algorithm": "MiniBatchKMeans",
+      "random_state": 42,
+      "batch_size": 20000,
+      "n_init": 3,
+      "max_iter": 50
+    }
+  },
+
+  "bounds": {
+    "cauchy_schwarz_epsilon": 1e-5,
+    "orthogonality_tolerance": 1e-5
+  },
+
+  "modulation": {
+    "error_backprop": true,
+    "alpha_smoothing": 0.5,
+    "alpha_min": 0.01,
+    "alpha_max": 0.99
+  }
+}

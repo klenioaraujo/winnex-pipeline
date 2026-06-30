@@ -55,6 +55,7 @@ class WinnexPipeline:
         self.is_built = False
         self.n_vectors = 0
         self.dim = 0
+        self.raw_dim = self.cfg['dimensions'].get('input_dim', 0)
         self._encoder = None
         self._encoder_type = None
         self._encoder_tokenizer = None
@@ -381,7 +382,10 @@ class WinnexPipeline:
         print(f"    Device:        {model_cfg.get('device', 'cpu')}")
         print(f"  Config:")
         print(f"    Stage dims:    {self.cfg['dimensions']['stage_dims']}")
-        print(f"    QJL dim:       {self.cfg['dimensions'].get('qjl_dim', '?')}")
+        qjl_dim = self.cfg['dimensions'].get('qjl_dim')
+        qjl_status = f"✅ {self.raw_dim}→{qjl_dim}" if (qjl_dim and self.raw_dim != qjl_dim and
+                     hasattr(self.index, 'qjl') and self.index.qjl is not None) else "❌ inactive"
+        print(f"    QJL:           {qjl_status}")
         print(f"    Keep ratio:    [{self.cfg['search']['adaptive_keep_min']}, "
               f"{self.cfg['search']['adaptive_keep_max']}]")
         print(f"    Final k:       {self.cfg['search']['final_results']}")

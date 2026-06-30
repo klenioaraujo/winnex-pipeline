@@ -1,0 +1,46 @@
+{
+  "agent_config": {
+    "name": "Winnex RAG Agent",
+    "type": "rag",
+    "version": "1.0.0",
+    "description": "General-purpose RAG agent with deterministic vector search",
+    "enabled": true,
+    "priority": 0
+  },
+  "system_prompt": "You are a helpful assistant. Answer based on the retrieved context. If uncertain, say so. Always be precise and factual.",
+  "parameters": {
+    "max_tokens": 1024,
+    "temperature": 0.3,
+    "top_p": 0.9,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0
+  },
+  "embedding": {
+    "model": "all-MiniLM-L6-v2",
+    "dimension": 384,
+    "qjl_dimension": 128,
+    "device": "cpu",
+    "batch_size": 64
+  },
+  "search": {
+    "method": "madhava",
+    "top_k": 5,
+    "mmr_lambda": 0.5,
+    "rerank": true
+  },
+  "source_config": {
+    "primary_source": "local_docs",
+    "secondary_sources": ["data/rag_corpus.json"]
+  },
+  "output_format": {
+    "include_sources": true,
+    "include_confidence": true,
+    "max_context_chars": 2000
+  },
+  "metadata": {
+    "created": "2026-06-30",
+    "updated": "2026-06-30",
+    "license": "BSL 1.1",
+    "contact": "pay@winnex.ai"
+  }
+}
