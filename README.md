@@ -150,6 +150,7 @@ pipe.build_from_texts(["Article about AI...", "Financial report...", ...])
 | **BAAI/bge-base-en-v1.5** | 768 | `config/models/bge.json` | SBERT |
 | **text-embedding-3-small** | 1536 | `config/models/openai_small.json` | OpenAI API |
 | **GPT-2** (hidden) | 768 | `config/models/gpt2.json` | HuggingFace |
+| **Qwen/Qwen2.5-7B-Instruct** | 4096 | `config/rag.json` | HuggingFace / API |
 | **SIFT / synthetic** | 128 | `config/models/sift.json` | Pre-embedded |
 
 The pipeline auto-adapts `stage_dims` to any embedding dimension — no manual tuning needed.
@@ -163,6 +164,52 @@ The pipeline auto-adapts `stage_dims` to any embedding dimension — no manual t
 | `config/qrjl.json` | [8, 64] | Fast QR-JL with error backprop modulation |
 
 See [CONFIG.md](CONFIG.md) for the complete parameter reference.
+
+---
+
+## RAG: Retrieval-Augmented Generation
+
+The pipeline includes a **multi-agent RAG** system driven by `config/rag.json`:
+
+```json
+{
+  "agent": { "name": "default", "provider": "auto" },
+  "embedding_model": { "name": "all-MiniLM-L6-v2", "dimension": 384 },
+  "dataset": { "source": "kaggle", "name": "rmisra/news-category-dataset" },
+  "generator": { "provider": "anthropic", "model": "claude-sonnet-4-6" }
+}
+```
+
+### Quick RAG Demo
+
+```python
+from winnex_pipeline.rag import RAGAgent
+
+agent = RAGAgent(config_path="config/rag.json")
+agent.load_custom_documents([
+    {"content": "Winnex provides deterministic vector search.",
+     "metadata": {"topic": "search"}},
+    {"content": "Cauchy-Schwarz guarantees zero bound violations.",
+     "metadata": {"topic": "math"}},
+])
+agent.build_index()
+answer = agent.query("How does Winnex guarantee correctness?")
+print(answer['answer'])
+```
+
+### Features
+
+- **Autonomous dataset loading:** Kaggle, HuggingFace, local JSON/JSONL
+- **Configurable embedding model:** MiniLM, BGE, Qwen, or any SentenceTransformer/HuggingFace model
+- **Native search backends:** `madhava`, `madhybrid`, `hmc` — set via `config.search.method`
+- **MMR diversity reranking:** Balances relevance and diversity
+- **LLM integration:** Anthropic, OpenAI, or mock for testing
+- **Deterministic bound verification:** Cauchy-Schwarz mathematical guarantee
+- **Document chunking:** Recursive splitting with configurable size/overlap
+
+```bash
+python examples/rag_agent_demo.py
+```
 
 ---
 

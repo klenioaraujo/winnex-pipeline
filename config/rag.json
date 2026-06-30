@@ -1,0 +1,129 @@
+{
+  "__meta__": "Winnex RAG — Multi-Agent Retrieval-Augmented Generation",
+  "version": "12.2.0",
+
+  "agent": {
+    "name": "default",
+    "description": "General-purpose RAG agent with configurable retriever and generator",
+    "system_prompt": "You are a helpful assistant. Answer based on the retrieved context. If uncertain, say so.",
+    "provider": "auto",
+    "api_key_env": "ANTHROPIC_API_KEY"
+  },
+
+  "model": {
+    "name": "Qwen/Qwen2.5-7B-Instruct",
+    "dimension": 4096,
+    "device": "auto",
+    "normalize": false,
+    "max_length": 8192,
+    "batch_size": 8,
+    "provider": "sentence-transformers",
+    "fallback": "all-MiniLM-L6-v2",
+    "description": "Primary model for embeddings and generation. Fallback to smaller model if unavailable."
+  },
+
+  "embedding_model": {
+    "name": "all-MiniLM-L6-v2",
+    "dimension": 384,
+    "device": "cpu",
+    "normalize": true,
+    "max_length": 256,
+    "batch_size": 64,
+    "provider": "sentence-transformers",
+    "description": "Lightweight embedding model for vector search (separate from generation model)."
+  },
+
+  "dimensions": {
+    "input_dim": 384,
+    "stage_dims": [32, 64],
+    "qjl_dim": 128
+  },
+
+  "dataset": {
+    "source": "kaggle",
+    "name": "rmisra/news-category-dataset",
+    "path": "data/rag_corpus.json",
+    "max_documents": 50000,
+    "fields": {
+      "title": "headline",
+      "content": "short_description",
+      "category": "category",
+      "metadata": ["headline", "category", "date", "authors"]
+    },
+    "fallback": {
+      "source": "huggingface",
+      "name": "squad",
+      "split": "train",
+      "max_documents": 5000
+    }
+  },
+
+  "chunking": {
+    "enabled": true,
+    "strategy": "recursive",
+    "chunk_size": 512,
+    "chunk_overlap": 64,
+    "separators": ["\n\n", "\n", ". ", " ", ""],
+    "max_chunks_per_doc": 20
+  },
+
+  "search": {
+    "method": "madhava",
+    "adaptive_keep_base": 0.25,
+    "adaptive_keep_min": 0.05,
+    "adaptive_keep_max": 0.50,
+    "adaptive_bounds_sensitivity": 0.12,
+    "stage2_topk": 500,
+    "stage2_topk_max": 2000,
+    "final_results": 10,
+    "rerank": false,
+    "hybrid_search": false,
+    "epsilon": 1e-5
+  },
+
+  "retriever": {
+    "top_k": 5,
+    "min_score": 0.0,
+    "diversity_penalty": 0.3,
+    "mmr_lambda": 0.5,
+    "query_expansion": {
+      "enabled": false,
+      "method": "llm",
+      "n_expansions": 3
+    }
+  },
+
+  "generator": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "temperature": 0.3,
+    "api_key_env": "ANTHROPIC_API_KEY",
+    "prompt_template": "Context:\n{context}\n\nQuestion: {query}\n\nAnswer based on the context above."
+  },
+
+  "hybrid": {
+    "enabled": false,
+    "n_cells": 64,
+    "n_probe": [3, 5, 8, 10, 15],
+    "clustering": {
+      "algorithm": "MiniBatchKMeans",
+      "random_state": 42,
+      "batch_size": 20000,
+      "n_init": 3,
+      "max_iter": 50
+    }
+  },
+
+  "bounds": {
+    "cauchy_schwarz_epsilon": 1e-5,
+    "orthogonality_tolerance": 1e-5
+  },
+
+  "modulation": {
+    "error_backprop": true,
+    "alpha_smoothing": 0.5,
+    "alpha_min": 0.01,
+    "alpha_max": 0.99
+  }
+}
