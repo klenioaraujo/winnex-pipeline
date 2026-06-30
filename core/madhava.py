@@ -82,15 +82,18 @@ class MadhavaCore:
         """
         t0 = time.time()
         vectors = np.asarray(vectors, dtype=np.float32)
+        actual_dim = vectors.shape[1]
 
         # QJL Compression (e.g. 384D -> 128D)
         qjl_dim = self.cfg['dimensions'].get('qjl_dim')
-        if qjl_dim and qjl_dim < vectors.shape[1]:
+        if qjl_dim and qjl_dim < actual_dim:
             from winnex_pipeline.core.qjl import QJLCompressor
-            self.qjl = QJLCompressor(vectors.shape[1], qjl_dim, seed=42)
+            self.qjl = QJLCompressor(actual_dim, qjl_dim, seed=42)
             vectors = self.qjl.compress(vectors)
-            print(f"  QJL: {self.raw_dim}D -> {qjl_dim}D (eps~{self.qjl._jl_bound():.3f})", flush=True)
+            print(f"  QJL: {actual_dim}D -> {qjl_dim}D (eps~{self.qjl._jl_bound():.3f})", flush=True)
             self.full_dim = qjl_dim
+        else:
+            self.full_dim = actual_dim
 
         self.vectors = vectors.astype(np.float64)
         self.n = len(vectors)
