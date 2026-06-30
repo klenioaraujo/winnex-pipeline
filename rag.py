@@ -230,7 +230,9 @@ def mmr_rerank(doc_embeddings, query_embedding, indices, scores,
     Balances relevance (query similarity) and diversity (doc dissimilarity).
     """
     if len(indices) <= top_k:
-        return indices[:top_k], scores[:top_k]
+        if scores is not None:
+            return indices[:top_k], scores[:top_k]
+        return indices[:top_k], None
 
     selected = []
     candidate_pool = list(range(len(indices)))
@@ -272,93 +274,199 @@ def mmr_rerank(doc_embeddings, query_embedding, indices, scores,
 
 def generate_answer(query, context_chunks, config):
     """
-    Generate an answer using the configured LLM provider.
+    Generate answer using a local LLM via HuggingFace transformers.
 
-    Supports: anthropic, openai, huggingface, and mock (for testing).
+    Supports:
+      - transformers: any HuggingFace causal LM (Qwen, Llama, Mistral, GPT-2...)
+      - vllm: high-throughput local inference (optional, faster)
+      - llama.cpp: GGUF quantized models via llama-cpp-python (optional)
+
+    Configure via config/rag.json:
+      "generator": {
+        "provider": "transformers",   # transformers | vllm | llama.cpp
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "device": "auto",             # auto | cpu | cuda
+        "quantization": null,         # null | "8bit" | "4bit"
+        "max_tokens": 1024,
+        "temperature": 0.3
+      }
     """
     gen_cfg = config.get('generator', {})
-    provider = gen_cfg.get('provider', 'mock')
-    api_key_env = gen_cfg.get('api_key_env', 'ANTHROPIC_API_KEY')
-    model = gen_cfg.get('model', 'claude-sonnet-4-6')
+    provider = gen_cfg.get('provider', 'transformers').lower()
+    model_name = gen_cfg.get('model', 'Qwen/Qwen2.5-7B-Instruct')
     max_tokens = gen_cfg.get('max_tokens', 1024)
     temperature = gen_cfg.get('temperature', 0.3)
+    device = gen_cfg.get('device', 'auto')
     template = gen_cfg.get('prompt_template',
                            "Context:\n{context}\n\nQuestion: {query}\n\nAnswer:")
 
+    # Build prompt
     context_text = "\n\n".join([
         f"[{i+1}] {chunk['text'] if isinstance(chunk, dict) else chunk}"
         for i, chunk in enumerate(context_chunks)
     ])
     prompt = template.format(context=context_text, query=query)
 
-    if provider == 'mock':
-        return _generate_mock(query, context_chunks, config)
+    # Build chat messages for instruct models
+    chat_template = gen_cfg.get('chat_template', None)
+    system_prompt = config.get('agent', {}).get('system_prompt',
+        "You are a helpful assistant. Answer based on the retrieved context. "
+        "If uncertain, say so.")
 
-    elif provider == 'anthropic':
-        return _generate_anthropic(prompt, model, max_tokens,
-                                   temperature, api_key_env, gen_cfg)
-
-    elif provider == 'openai':
-        return _generate_openai(prompt, model, max_tokens,
-                                temperature, api_key_env, gen_cfg)
-
-    elif provider == 'mock':
-        return f"[MOCK] Response based on {len(context_chunks)} chunks. Query: {query[:50]}..."
-
+    if provider == 'transformers':
+        return _generate_transformers(prompt, model_name, max_tokens,
+                                      temperature, device, gen_cfg,
+                                      chat_template, system_prompt)
+    elif provider == 'vllm':
+        return _generate_vllm(prompt, model_name, max_tokens,
+                              temperature, gen_cfg, system_prompt)
+    elif provider == 'llama.cpp' or provider == 'llamacpp':
+        return _generate_llamacpp(prompt, model_name, max_tokens,
+                                  temperature, gen_cfg, system_prompt)
     else:
-        raise ValueError(f"Unknown generator provider: {provider}")
+        raise ValueError(f"Unknown generator provider: {provider}. "
+                         f"Options: transformers, vllm, llama.cpp")
 
 
-def _generate_anthropic(prompt, model, max_tokens, temperature, api_key_env, gen_cfg):
-    try:
-        import anthropic
-        api_key = os.environ.get(api_key_env)
-        if not api_key:
-            return "[WARN] No API key found. Set " + api_key_env
+# ── Cached model registry ──────────────────────────────────────
+_GENERATOR_CACHE = {}
 
-        client = anthropic.Anthropic(api_key=api_key)
-        response = client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            messages=[{"role": "user", "content": prompt}]
+def _generate_transformers(prompt, model_name, max_tokens, temperature,
+                           device, gen_cfg, chat_template, system_prompt):
+    """Generate using HuggingFace transformers (local model)."""
+    global _GENERATOR_CACHE
+    cache_key = f"hf_{model_name}"
+
+    if cache_key not in _GENERATOR_CACHE:
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            import torch
+        except ImportError:
+            return ("[ERROR] transformers not installed. "
+                    "pip install transformers torch accelerate")
+
+        print(f"Loading local model: {model_name}...", flush=True)
+        quant = gen_cfg.get('quantization', None)
+        load_kwargs = {
+            "device_map": device if device != "cpu" else "cpu",
+            "trust_remote_code": True,
+        }
+
+        if quant == "8bit":
+            load_kwargs["load_in_8bit"] = True
+        elif quant == "4bit":
+            load_kwargs["load_in_4bit"] = True
+            load_kwargs["bnb_4bit_compute_dtype"] = "float16"
+
+        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
+        if device == "cpu" or quant is None:
+            model = model.to(device if device != "auto" else "cpu")
+        model.eval()
+        _GENERATOR_CACHE[cache_key] = (model, tokenizer)
+        print(f"  Model loaded: {model_name}", flush=True)
+    else:
+        model, tokenizer = _GENERATOR_CACHE[cache_key]
+
+    # Apply chat template if available
+    if chat_template or (hasattr(tokenizer, 'chat_template') and
+                         tokenizer.chat_template is not None):
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        if chat_template:
+            tokenizer.chat_template = chat_template
+        inputs = tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, return_tensors="pt"
         )
-        return response.content[0].text
-    except ImportError:
-        return "[WARN] anthropic not installed. pip install anthropic"
+    else:
+        full_prompt = f"{system_prompt}\n\n{prompt}"
+        inputs = tokenizer(full_prompt, return_tensors="pt")
 
+    import torch
+    inputs = inputs.to(model.device if hasattr(model, 'device') else 'cpu')
 
-def _generate_openai(prompt, model, max_tokens, temperature, api_key_env, gen_cfg):
-    try:
-        import openai
-        api_key = os.environ.get(api_key_env, os.environ.get('OPENAI_API_KEY'))
-        if not api_key:
-            return "[WARN] No OpenAI API key found"
-
-        client = openai.OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model=model,
-            max_tokens=max_tokens,
+    with torch.no_grad():
+        outputs = model.generate(
+            inputs,
+            max_new_tokens=max_tokens,
             temperature=temperature,
-            messages=[{"role": "user", "content": prompt}]
+            do_sample=(temperature > 0),
+            pad_token_id=tokenizer.eos_token_id,
         )
-        return response.choices[0].message.content
-    except ImportError:
-        return "[WARN] openai not installed. pip install openai"
 
-def _generate_mock(query, context_chunks, config):
-    """Mock generator for testing — returns structured context summary."""
-    chunks = []
-    for c in context_chunks[:3]:
-        text = c['text'] if isinstance(c, dict) else c
-        chunks.append(text[:120])
-    return (
-        f"[Mock Answer based on {len(context_chunks)} retrieved chunks]\n\n"
-        f"**Query**: {query[:80]}...\n\n"
-        f"**Top Sources**:\n" +
-        "\n".join(f"  {i+1}. {c[:100]}..." for i, c in enumerate(chunks)) +
-        "\n\n[Configure a generator provider in config/rag.json]"
+    response = tokenizer.decode(outputs[0][inputs.shape[1]:], skip_special_tokens=True)
+    return response.strip()
+
+
+def _generate_vllm(prompt, model_name, max_tokens, temperature,
+                   gen_cfg, system_prompt):
+    """Generate using vLLM (high-throughput local inference)."""
+    global _GENERATOR_CACHE
+    cache_key = f"vllm_{model_name}"
+
+    if cache_key not in _GENERATOR_CACHE:
+        try:
+            from vllm import LLM, SamplingParams
+        except ImportError:
+            return ("[ERROR] vllm not installed. pip install vllm")
+
+        print(f"Loading vLLM model: {model_name}...", flush=True)
+        dtype = gen_cfg.get('dtype', 'auto')
+        gpu_memory = gen_cfg.get('gpu_memory_utilization', 0.90)
+        llm = LLM(model=model_name, dtype=dtype,
+                  gpu_memory_utilization=gpu_memory,
+                  trust_remote_code=True)
+        _GENERATOR_CACHE[cache_key] = (llm, SamplingParams)
+        print(f"  vLLM model loaded: {model_name}", flush=True)
+    else:
+        llm, SamplingParams = _GENERATOR_CACHE[cache_key]
+
+    full_prompt = f"{system_prompt}\n\n{prompt}"
+    params = SamplingParams(
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
+    outputs = llm.generate([full_prompt], params)
+    return outputs[0].outputs[0].text.strip()
+
+
+def _generate_llamacpp(prompt, model_name, max_tokens, temperature,
+                       gen_cfg, system_prompt):
+    """Generate using llama.cpp via llama-cpp-python (GGUF quantized models)."""
+    global _GENERATOR_CACHE
+    cache_key = f"lcpp_{model_name}"
+
+    if cache_key not in _GENERATOR_CACHE:
+        try:
+            from llama_cpp import Llama
+        except ImportError:
+            return ("[ERROR] llama-cpp-python not installed. "
+                    "pip install llama-cpp-python")
+
+        print(f"Loading GGUF model: {model_name}...", flush=True)
+        n_gpu_layers = gen_cfg.get('n_gpu_layers', 0)
+        n_ctx = gen_cfg.get('n_ctx', 4096)
+        llm = Llama(
+            model_path=model_name,
+            n_ctx=n_ctx,
+            n_gpu_layers=n_gpu_layers,
+            verbose=False,
+        )
+        _GENERATOR_CACHE[cache_key] = llm
+        print(f"  GGUF model loaded: {model_name}", flush=True)
+    else:
+        llm = _GENERATOR_CACHE[cache_key]
+
+    full_prompt = f"{system_prompt}\n\n{prompt}"
+    output = llm(
+        full_prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        stop=["</s>", "User:", "\n\n\n"],
+    )
+    return output['choices'][0]['text'].strip()
 
 
 # ═══════════════════════════════════════════════════════════════
