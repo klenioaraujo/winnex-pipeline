@@ -24,7 +24,9 @@ import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-# Ensure package is importable
+# Ensure the package directory is importable
+# server.py sits at the winnex_pipeline module root alongside
+# config.py, api.py, core/, pipeline/, etc.
 _app_dir = Path(__file__).parent.absolute()
 if str(_app_dir) not in sys.path:
     sys.path.insert(0, str(_app_dir))
@@ -65,6 +67,7 @@ class AppState:
         self.is_ready = False
         self.n_docs = 0
         self.dim = 0
+        self._texts = []
         self.start_time = time.time()
         self.request_count = 0
 
@@ -128,6 +131,7 @@ def index_documents(req: IndexRequest):
         state.n_docs = len(req.texts)
         state.dim = pipe.dim
         state.is_ready = True
+        state._texts = req.texts
 
         # Verify bounds on first vector
         try:
@@ -135,6 +139,9 @@ def index_documents(req: IndexRequest):
             bound_status = "PASS" if all(v == 0 for v in b['violations'].values()) else "FAIL"
         except Exception:
             bound_status = "N/A"
+
+        qjl_dim = pipe.cfg['dimensions'].get('qjl_dim')
+        qjl_str = f"{pipe.raw_dim}D->{qjl_dim}D" if qjl_dim and qjl_dim < pipe.raw_dim else "inactive"
 
         return {
             "status": "ok",
@@ -144,7 +151,7 @@ def index_documents(req: IndexRequest):
             "build_time_s": round(getattr(pipe.index, 'build_time', 0), 3),
             "bound_check": bound_status,
             "stages": pipe.cfg['dimensions'].get('stage_dims', []),
-            "qjl": f"{pipe.raw_dim}D->{pipe.cfg['dimensions'].get('qjl_dim', pipe.dim)}D" if pipe.cfg['dimensions'].get('qjl_dim') else "inactive",
+            "qjl": qjl_str,
         }
     except Exception as e:
         logger.error(f"Index failed: {e}")
