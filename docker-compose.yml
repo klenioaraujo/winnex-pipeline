@@ -1,0 +1,84 @@
+# Winnex Mini — docker-compose.yml
+# ==================================
+# Lightweight inference stack following Winnex AI enterprise patterns.
+#
+# Services:
+#   winnex-mini    — FastAPI server with Madhava pipeline
+#
+# Usage:
+#   docker compose up -d
+#   curl http://localhost:8080/health
+#   curl -X POST http://localhost:8080/index \
+#     -H "Content-Type: application/json" \
+#     -d '{"texts": ["doc1", "doc2", "..."], "config_path": "configs/base.json"}'
+#
+# Reference: SGLang-Winnex-AI docker-compose.yml (Standardized v4.0)
+# License: BSL 1.1 | pay@winnex.ai
+
+version: '3.8'
+
+services:
+  winnex-mini:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: winnex-mini
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./configs:/app/configs:ro
+      - ./config:/app/config:ro
+      - winnex-data:/app/data
+      - winnex-results:/app/results
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - PYTHONUNBUFFERED=1
+      - OMP_NUM_THREADS=4
+      - TOKENIZERS_PARALLELISM=false
+    networks:
+      - winnex-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+
+  # Optional: Redis for semantic cache (RAG mode)
+  winnex-redis:
+    image: redis:7-alpine
+    container_name: winnex-redis
+    profiles: ["full"]
+    networks:
+      - winnex-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+networks:
+  winnex-network:
+    driver: bridge
+    name: winnex-network
+
+volumes:
+  winnex-data:
+    driver: local
+  winnex-results:
+    driver: local
