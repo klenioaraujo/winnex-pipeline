@@ -1,0 +1,17 @@
+# Winnex Pipeline — Core Dependencies
+numpy>=1.24
+scikit-learn>=1.2
+
+# Search (optional: at least one of the three)
+faiss-cpu>=1.7      # Ground truth + HNSW/IVF comparisons
+torch>=2.0           # HMC Hierarchical (optional)
+
+# Data loading (optional)
+h5py                 # SIFT-1M dataset
+sentence-transformers # SBERT embeddings
+
+# Benchmark visualization (optional)
+matplotlib>=3.5
+
+# Development
+# pip install faiss-cpu scikit-learn numpy

@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.venv
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data
+data/*.npy
+data/*.hdf5
+data/*.csv
+
+# Results (keep directory, ignore runtime files)
+results/*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+*.orig
+*~

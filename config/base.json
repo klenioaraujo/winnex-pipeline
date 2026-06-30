@@ -1,0 +1,41 @@
+{
+  "__meta__": "Madhava Pipeline - Balanced Preset [32,64]",
+  "version": "12.0.0",
+  "dimensions": {
+    "input_dim": 128,
+    "stage_dims": [32, 64],
+    "qjl_dim": 128
+  },
+  "search": {
+    "adaptive_keep_base": 0.25,
+    "adaptive_keep_min": 0.05,
+    "adaptive_keep_max": 0.50,
+    "adaptive_bounds_sensitivity": 0.12,
+    "stage2_topk": 500,
+    "stage2_topk_max": 2000,
+    "final_results": 10,
+    "epsilon": 1e-5
+  },
+  "hybrid": {
+    "enabled": true,
+    "n_cells": 64,
+    "n_probe": [3, 5, 8, 10, 15],
+    "clustering": {
+      "algorithm": "MiniBatchKMeans",
+      "random_state": 42,
+      "batch_size": 20000,
+      "n_init": 3,
+      "max_iter": 50
+    }
+  },
+  "bounds": {
+    "cauchy_schwarz_epsilon": 1e-5,
+    "orthogonality_tolerance": 1e-5
+  },
+  "modulation": {
+    "error_backprop": true,
+    "alpha_smoothing": 0.5,
+    "alpha_min": 0.01,
+    "alpha_max": 0.99
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "__meta__": "Madhava Pipeline - QR-JL Error Backprop Preset [8,64]",
+  "version": "12.0.0",
+  "dimensions": {
+    "input_dim": 128,
+    "stage_dims": [8, 64],
+    "qjl_dim": 128
+  },
+  "search": {
+    "adaptive_keep_base": 0.20,
+    "adaptive_keep_min": 0.05,
+    "adaptive_keep_max": 0.40,
+    "adaptive_bounds_sensitivity": 0.15,
+    "stage2_topk": 200,
+    "stage2_topk_max": 1000,
+    "final_results": 10,
+    "epsilon": 1e-5
+  },
+  "hybrid": {
+    "enabled": false,
+    "n_cells": 64,
+    "n_probe": [5, 10, 15],
+    "clustering": {
+      "algorithm": "MiniBatchKMeans",
+      "random_state": 42,
+      "batch_size": 20000,
+      "n_init": 3,
+      "max_iter": 50
+    }
+  },
+  "bounds": {
+    "cauchy_schwarz_epsilon": 1e-5,
+    "orthogonality_tolerance": 1e-5
+  },
+  "modulation": {
+    "error_backprop": true,
+    "alpha_smoothing": 0.5,
+    "alpha_min": 0.01,
+    "alpha_max": 0.99
+  }
+}
